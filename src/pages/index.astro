@@ -1,0 +1,115 @@
+---
+import Base from '../layouts/Base.astro';
+import { api, ApiError, type PackagePage, searchQuery, TOOLS } from '../lib/api';
+import { parsePage, parseTool, plural, TOOL_LABELS } from '../lib/format';
+
+const params = Astro.url.searchParams;
+const q = (params.get('q') ?? '').trim().slice(0, 200);
+const tool = parseTool(params.get('tool'));
+const page = parsePage(params.get('page'));
+
+let result: PackagePage | undefined;
+let failure: string | undefined;
+try {
+  result = await api.search({ q, ...(tool ? { tool } : {}), page });
+} catch (e) {
+  failure = e instanceof ApiError ? e.message : 'Une erreur est survenue.';
+  Astro.response.status = 502;
+}
+const pageCount = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
+const link = (p: number) => `/${searchQuery({ q, ...(tool ? { tool } : {}), page: p })}`;
+const filtered = q !== '' || tool !== undefined;
+---
+
+<Base title={q ? `Recherche : ${q}` : 'Catalogue'}>
+  <h1>Catalogue d’agents</h1>
+  <p class="lead">
+    Trouvez un agent, lisez ce qu’il contient, puis copiez la commande qui l’installe dans votre outil.
+  </p>
+
+  <form class="search" method="get" action="/" role="search" aria-label="Rechercher dans le catalogue">
+    <div>
+      <label for="q">Que cherchez-vous ?</label>
+      <div class="search-row">
+        <input type="search" id="q" name="q" value={q} maxlength="200" placeholder="Par exemple : relecture de code" autocomplete="off" />
+        <button class="button" type="submit">Rechercher</button>
+      </div>
+    </div>
+    <fieldset>
+      <legend>Compatible avec</legend>
+      <div class="choices">
+        <label><input type="radio" name="tool" value="" checked={!tool} /> Tous les outils</label>
+        {
+          TOOLS.map((t) => (
+            <label>
+              <input type="radio" name="tool" value={t} checked={tool === t} /> {TOOL_LABELS[t]}
+            </label>
+          ))
+        }
+      </div>
+    </fieldset>
+  </form>
+
+  {
+    failure && (
+      <div class="notice danger" role="alert">
+        <p>{failure} Réessayez dans un instant.</p>
+      </div>
+    )
+  }
+
+  {
+    result && (
+      <section aria-labelledby="titre-resultats">
+        <h2 id="titre-resultats">Résultats</h2>
+        <p role="status">
+          <strong>
+            {result.total === 0 ? 'Aucun paquet trouvé' : plural(result.total, 'paquet')}
+            {filtered && result.total > 0 ? ' pour cette recherche' : ''}
+          </strong>
+        </p>
+        {result.total === 0 && (
+          <p>
+            {filtered ? 'Essayez d’autres mots, ou ' : 'Le catalogue est encore vide.'}
+            {filtered && <a href="/">affichez tout le catalogue</a>}
+            {filtered && '.'}
+          </p>
+        )}
+        <ul class="results">
+          {result.items.map((p) => (
+            <li class="card">
+              <h3>
+                <a href={`/packages/${p.id}`}>{p.name}</a>
+              </h3>
+              <p>{p.description ?? 'Pas de description.'}</p>
+              <ul class="meta" aria-label={`Informations sur ${p.name}`}>
+                {p.latestVersion && <li class="badge">Version {p.latestVersion}</li>}
+                {p.tools.map((t) => (
+                  <li class="badge">{TOOL_LABELS[t]}</li>
+                ))}
+                {p.license && <li class="badge">Licence {p.license}</li>}
+              </ul>
+            </li>
+          ))}
+        </ul>
+        {pageCount > 1 && (
+          <nav class="pagination" aria-label="Pages de résultats">
+            {page > 1 && (
+              <a class="button secondary" href={link(page - 1)} rel="prev">
+                Page précédente
+              </a>
+            )}
+            <span>
+              Page {page} sur {pageCount}
+            </span>
+            {page < pageCount && (
+              <a class="button secondary" href={link(page + 1)} rel="next">
+                Page suivante
+              </a>
+            )}
+          </nav>
+        )}
+      </section>
+    )
+  }
+</Base>

@@ -1,0 +1,301 @@
+---
+import Base from '../../layouts/Base.astro';
+import { api, ApiError, type FileContent, type PackageItem, type VersionDetail, type VersionItem } from '../../lib/api';
+import { formatDate, formatSize, plural, scanSentence, SEVERITY_LABELS, TOOL_LABELS } from '../../lib/format';
+
+const id = Number(Astro.params.id);
+const wantedVersion = Astro.url.searchParams.get('version');
+const wantedFile = Astro.url.searchParams.get('file');
+
+let pkg: PackageItem | undefined;
+let versions: VersionItem[] = [];
+let detail: VersionDetail | undefined;
+let file: FileContent | undefined;
+let failure: { status: number; message: string } | undefined;
+
+try {
+  if (!Number.isInteger(id) || id < 1) throw new ApiError(404, 'Introuvable.');
+  pkg = await api.package(id);
+  versions = (await api.versions(id)).items;
+  const current = versions.find((v) => v.version === wantedVersion) ?? versions.find((v) => v.version === pkg!.latestVersion) ?? versions[0];
+  if (current) {
+    detail = await api.version(id, current.version);
+    const target = wantedFile && detail.files.find((f) => f.path === wantedFile && f.hasContent);
+    if (target) file = await api.file(id, current.version, target.path);
+  }
+} catch (e) {
+  failure = e instanceof ApiError ? { status: e.status, message: e.message } : { status: 502, message: 'Une erreur est survenue.' };
+  Astro.response.status = failure.status;
+}
+
+const fileLink = (path: string) => `/packages/${id}?${new URLSearchParams({ ...(detail ? { version: detail.version } : {}), file: path })}#fichier`;
+const versionLink = (v: string) => `/packages/${id}?${new URLSearchParams({ version: v })}`;
+const c = detail?.contents;
+const executes = c ? c.hooks.length + c.mcpServers.length : 0;
+const scanClass = !detail ? '' : detail.scanBlocked ? 'danger' : detail.findings.length > 0 ? 'warning' : 'ok';
+const isLatest = detail && pkg && detail.version === pkg.latestVersion;
+const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg.repository}#${detail.ref}`) : '';
+---
+
+<Base title={pkg?.name ?? 'Paquet introuvable'} description={pkg?.description ?? undefined}>
+  <p><a href="/">← Retour au catalogue</a></p>
+
+  {
+    failure && (
+      <>
+        <h1>{failure.status === 404 ? 'Paquet introuvable' : 'Catalogue injoignable'}</h1>
+        <div class="notice danger" role="alert">
+          <p>{failure.status === 404 ? 'Ce paquet n’existe pas, ou n’est plus dans le catalogue.' : `${failure.message} Réessayez dans un instant.`}</p>
+        </div>
+      </>
+    )
+  }
+
+  {
+    pkg && (
+      <>
+        <h1>{pkg.name}</h1>
+        <p class="lead">{pkg.description ?? 'Pas de description.'}</p>
+        <ul class="meta" aria-label="Outils compatibles et licence">
+          {pkg.tools.map((t) => (
+            <li class="badge">{TOOL_LABELS[t]}</li>
+          ))}
+          {pkg.license && <li class="badge">Licence {pkg.license}</li>}
+          {pkg.tags.map((t) => (
+            <li class="badge">{t}</li>
+          ))}
+        </ul>
+
+        {detail && (
+          <section class="install" aria-labelledby="titre-installer">
+            <h2 id="titre-installer">Installer{isLatest ? '' : ` la version ${detail.version}`}</h2>
+            <p>Copiez cette commande dans un terminal, à la racine de votre projet. Elle affiche tout ce qui sera écrit et demande votre accord avant d’agir.</p>
+            <div class="command">
+              <code id="commande">{command}</code>
+              <button class="button" type="button" data-copy="commande" hidden>
+                Copier la commande
+              </button>
+            </div>
+            <p class="muted" role="status" aria-live="polite" data-copy-status />
+            <p class="muted">
+              Il vous faut l’outil <code>ahub</code>. Pour choisir les outils visés, ajoutez par exemple <code>--tool claude,cursor</code>.
+            </p>
+          </section>
+        )}
+
+        {detail && c && (
+          <>
+            <section aria-labelledby="titre-securite">
+              <h2 id="titre-securite">Contrôle de sécurité</h2>
+              <div class={`notice ${scanClass}`}>
+                <p>
+                  <strong>{detail.scanBlocked ? 'Attention.' : detail.findings.length > 0 ? 'À vérifier.' : 'Rien à signaler.'}</strong>{' '}
+                  {scanSentence(detail.findings, detail.scanBlocked)}
+                </p>
+              </div>
+              {detail.findings.length > 0 && (
+                <div class="table-scroll">
+                  <table>
+                    <caption class="visually-hidden">Points relevés par le contrôle automatique</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Gravité</th>
+                        <th scope="col">Fichier</th>
+                        <th scope="col">Constat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.findings.map((f) => (
+                        <tr>
+                          <td>{SEVERITY_LABELS[f.severity]}</td>
+                          <td>
+                            <a href={fileLink(f.path)}>{f.path}</a>, ligne {f.line}
+                          </td>
+                          <td>{f.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p class="muted">Ce contrôle repère des pièges connus (texte invisible, commandes dangereuses). Il ne remplace pas une lecture du contenu.</p>
+            </section>
+
+            <section aria-labelledby="titre-contenu">
+              <h2 id="titre-contenu">Ce que ce paquet installe</h2>
+              {executes > 0 && (
+                <div class="notice warning">
+                  <p>
+                    <strong>Ce paquet lance des programmes.</strong> {plural(executes, 'élément')} ci-dessous{' '}
+                    {executes > 1 ? 'exécutent' : 'exécute'} une commande sur votre machine. Lisez-les avant d’installer.
+                  </p>
+                </div>
+              )}
+
+              {c.skills.length > 0 && (
+                <>
+                  <h3>Compétences ({c.skills.length})</h3>
+                  <p class="muted">Des savoir-faire que l’agent charge quand il en a besoin.</p>
+                  <ul class="plain">
+                    {c.skills.map((s) => (
+                      <li>
+                        <strong>{s.name}</strong>
+                        {s.description ? ` — ${s.description}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {c.agents.length > 0 && (
+                <>
+                  <h3>Agents ({c.agents.length})</h3>
+                  <p class="muted">Des assistants spécialisés, avec leurs propres consignes.</p>
+                  <ul class="plain">
+                    {c.agents.map((a) => (
+                      <li>{a}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {c.commands.length > 0 && (
+                <>
+                  <h3>Commandes ({c.commands.length})</h3>
+                  <p class="muted">Des raccourcis à taper dans l’outil.</p>
+                  <ul class="plain">
+                    {c.commands.map((a) => (
+                      <li>
+                        <code>/{a}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {c.instructions.length > 0 && (
+                <>
+                  <h3>Consignes ({c.instructions.length})</h3>
+                  <p class="muted">Des règles appliquées automatiquement à certains fichiers.</p>
+                  <ul class="plain">
+                    {c.instructions.map((a) => (
+                      <li>{a}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {c.hooks.length > 0 && (
+                <>
+                  <h3>Automatismes ({c.hooks.length})</h3>
+                  <p class="muted">Des commandes lancées automatiquement à certains moments (« hooks »).</p>
+                  <ul class="plain">
+                    {c.hooks.map((h) => (
+                      <li>
+                        <strong>{h.name}</strong> — se déclenche sur : {h.events.join(', ')}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {c.mcpServers.length > 0 && (
+                <>
+                  <h3>Serveurs d’outils ({c.mcpServers.length})</h3>
+                  <p class="muted">Des programmes qui donnent de nouveaux outils à l’agent (serveurs MCP).</p>
+                  <ul class="plain">
+                    {c.mcpServers.map((m) => (
+                      <li>
+                        <strong>{m.name}</strong> — <code>{m.command ? [m.command, ...(m.args ?? [])].join(' ') : (m.url ?? '')}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+
+            <section aria-labelledby="titre-fichiers">
+              <h2 id="titre-fichiers">Lire les fichiers ({detail.files.length})</h2>
+              <p>Voici exactement ce que contient cette version. Cliquez sur un fichier pour le lire.</p>
+              <ul class="plain">
+                {detail.files.map((f) => (
+                  <li>
+                    {f.hasContent ? (
+                      <a href={fileLink(f.path)} aria-current={file?.path === f.path ? 'true' : undefined}>
+                        {f.path}
+                      </a>
+                    ) : (
+                      <span>{f.path}</span>
+                    )}{' '}
+                    <span class="muted">
+                      ({formatSize(f.size)}
+                      {f.hasContent ? '' : ', fichier binaire non affiché'})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {file && (
+                <div id="fichier" tabindex="-1">
+                  <h3>{file.path}</h3>
+                  <pre><code>{file.content}</code></pre>
+                </div>
+              )}
+            </section>
+
+            <section aria-labelledby="titre-details">
+              <h2 id="titre-details">Détails</h2>
+              <dl class="facts">
+                <dt>Version affichée</dt>
+                <dd>{detail.version}</dd>
+                <dt>Source</dt>
+                <dd>
+                  <code>{pkg.repository}</code>
+                </dd>
+                {detail.commit && (
+                  <>
+                    <dt>Révision exacte</dt>
+                    <dd>
+                      <code>{detail.commit}</code>
+                    </dd>
+                  </>
+                )}
+                <dt>Lu par le catalogue le</dt>
+                <dd>{formatDate(detail.indexedAt)}</dd>
+              </dl>
+              {versions.length > 1 && (
+                <>
+                  <h3>Autres versions</h3>
+                  <ul class="plain">
+                    {versions.map((v) => (
+                      <li>
+                        <a href={versionLink(v.version)} aria-current={v.version === detail!.version ? 'true' : undefined}>
+                          {v.version}
+                        </a>
+                        {v.version === pkg!.latestVersion ? ' (dernière)' : ''}
+                        {v.scanBlocked ? ' — problème critique relevé' : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          </>
+        )}
+      </>
+    )
+  }
+</Base>
+
+<script>
+  // Amélioration progressive : sans JavaScript, la commande reste lisible et sélectionnable.
+  for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-copy]')) {
+    if (!navigator.clipboard) continue;
+    const source = document.getElementById(button.dataset.copy ?? '');
+    const status = document.querySelector<HTMLElement>('[data-copy-status]');
+    if (!source) continue;
+    button.hidden = false;
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(source.textContent ?? '');
+        if (status) status.textContent = 'Commande copiée.';
+      } catch {
+        if (status) status.textContent = 'Copie impossible : sélectionnez la commande à la main.';
+      }
+    });
+  }
+</script>

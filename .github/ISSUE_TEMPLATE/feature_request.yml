@@ -1,0 +1,19 @@
+name: Proposer une amélioration
+description: Une idée ou un besoin non couvert
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Quel besoin voulez-vous couvrir ?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposition
+  - type: textarea
+    id: standards
+    attributes:
+      label: Standard existant
+      description: Un standard (OpenAPM, Agent Skills, MCP...) couvre-t-il déjà ce besoin ? Agenteca n'invente un format qu'en dernier recours.

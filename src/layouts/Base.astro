@@ -1,0 +1,40 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const { title, description = 'Catalogue d’agents IA pour Claude Code, Codex, GitHub Copilot et Cursor.' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} — Agenteca</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="skip-link" href="#contenu">Aller au contenu</a>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="site-title" href="/">Agenteca</a>
+        <p class="site-tagline">Des agents IA prêts à installer, pour Claude Code, Codex, GitHub Copilot et Cursor.</p>
+      </div>
+    </header>
+    <main id="contenu" class="wrap" tabindex="-1">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="wrap">
+        <p>
+          Les paquets viennent de dépôts publics et sont contrôlés automatiquement, mais lisez toujours leur contenu avant de les installer : un agent
+          agit en votre nom.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

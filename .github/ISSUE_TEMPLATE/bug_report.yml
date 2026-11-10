@@ -1,0 +1,37 @@
+name: Signaler un bogue
+description: Quelque chose ne fonctionne pas comme prévu
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Que s'est-il passé ?
+      description: Décrivez le comportement observé et celui que vous attendiez.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Étapes pour reproduire
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version de agenteca-web
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environnement
+      description: Système, version de Node ou de l'IDE, outil cible (Claude Code, Codex, Copilot, Cursor).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sortie ou journaux
+      description: Retirez tout secret avant de coller.
+      render: shell
