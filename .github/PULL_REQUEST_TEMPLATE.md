@@ -7,4 +7,4 @@
 - [ ] Tests ajoutés ou mis à jour
 - [ ] `CHANGELOG.md` mis à jour (section « Non publié »)
 - [ ] Contrat inchangé, ou changement de version SemVer justifié (schéma JSON de la CLI, OpenAPI du serveur)
-- [ ] Contribution : accord de contribution (CLA) : voir `CLA.md` dans le dépôt `.github` de l'organisation.
+- [ ] J'ai lu et j'accepte l'[accord de contribution d'Agenteca](https://github.com/agenteca/.github/blob/main/CLA.md), version 1.0
