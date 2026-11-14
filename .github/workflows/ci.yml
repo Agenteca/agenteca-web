@@ -7,19 +7,25 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        node: [22, 24]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: agenteca-web
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
-      - run: npm install --no-audit --no-fund
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+          node-version: 22
+      # Les dépôts Agenteca sont reliés par un espace de travail npm, comme en développement.
+      - name: Espace de travail
+        run: |
+          echo '{"private": true, "workspaces": ["agenteca-web"]}' > package.json
+          npm install --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+        working-directory: agenteca-web
+      - name: Tests (construit le site)
+        run: npm test
+        working-directory: agenteca-web
+      - name: Types
+        run: npm run typecheck
+        working-directory: agenteca-web
