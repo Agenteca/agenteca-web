@@ -2,7 +2,7 @@
 
 Site du catalogue Agenteca : recherche, filtre par outil compatible, contenu de chaque paquet lisible avant installation, bouton « copier la commande d'installation ».
 
-> État : 0.1.0, non publié. Catalogues publics seulement : pas de connexion ni de page d'administration dans cette version (la publication passe par l'API ou `curl`).
+> État : 0.1.0 ; l'image Docker n'est pas encore publiée. Catalogues publics seulement : pas de connexion ni de page d'administration dans cette version (la publication passe par l'API ou `curl`).
 
 Chaque page est rendue côté serveur (Astro) : le site fonctionne sans JavaScript, qui n'ajoute que le bouton de copie.
 
