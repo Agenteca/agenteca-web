@@ -1,28 +1,43 @@
 ---
+import { HTML_LANG, LOCALE_NAMES, LOCALES } from '../lib/i18n';
 import '../styles/global.css';
 
 interface Props {
   title: string;
   description?: string;
 }
-const { title, description = 'Catalogue d’agents IA pour Claude Code, Codex, GitHub Copilot et Cursor.' } = Astro.props;
+const { t, locale } = Astro.locals.i18n;
+const {
+  title,
+  description = t('Catalog of AI agents for Claude Code, Codex, GitHub Copilot and Cursor.'),
+} = Astro.props;
+
+/** The page being read, in another language. */
+const inLanguage = (code: string): string => {
+  const params = new URLSearchParams(Astro.url.searchParams);
+  params.set('lang', code);
+  return `${Astro.url.pathname}?${params}`;
+};
 ---
 
 <!doctype html>
-<html lang="fr">
+<html lang={HTML_LANG[locale]}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} — Agenteca</title>
     <meta name="description" content={description} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {LOCALES.map((code) => <link rel="alternate" hreflang={HTML_LANG[code]} href={inLanguage(code)} />)}
   </head>
   <body>
-    <a class="skip-link" href="#contenu">Aller au contenu</a>
+    <a class="skip-link" href="#contenu">{t('Skip to content')}</a>
     <header class="site-header">
       <div class="wrap">
         <a class="site-title" href="/">Agenteca</a>
-        <p class="site-tagline">Des agents IA prêts à installer, pour Claude Code, Codex, GitHub Copilot et Cursor.</p>
+        <p class="site-tagline">
+          {t('AI agents ready to install, for Claude Code, Codex, GitHub Copilot and Cursor.')}
+        </p>
       </div>
     </header>
     <main id="contenu" class="wrap" tabindex="-1">
@@ -31,9 +46,30 @@ const { title, description = 'Catalogue d’agents IA pour Claude Code, Codex, G
     <footer class="site-footer">
       <div class="wrap">
         <p>
-          Les paquets viennent de dépôts publics et sont contrôlés automatiquement, mais lisez toujours leur contenu avant de les installer : un agent
-          agit en votre nom.
+          {
+            t(
+              'Packages come from public repositories and are checked automatically, but always read their content before installing them: an agent acts on your behalf.',
+            )
+          }
         </p>
+        <nav aria-label={t('Language')}>
+          <ul class="languages">
+            {
+              LOCALES.map((code) => (
+                <li>
+                  <a
+                    href={inLanguage(code)}
+                    lang={HTML_LANG[code]}
+                    hreflang={HTML_LANG[code]}
+                    aria-current={code === locale ? 'true' : undefined}
+                  >
+                    {LOCALE_NAMES[code]}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </nav>
       </div>
     </footer>
   </body>

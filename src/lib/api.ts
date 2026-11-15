@@ -66,12 +66,14 @@ export interface FileContent {
   content: string | null;
 }
 
+/** Why a call to the catalog failed. Pages turn `reason` into a sentence in the visitor's language. */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string,
+    readonly reason: 'not_found' | 'unreachable' | 'upstream_error',
+    readonly upstreamStatus?: number,
   ) {
-    super(message);
+    super(`catalog API: ${reason}${upstreamStatus ? ` (${upstreamStatus})` : ''}`);
   }
 }
 
@@ -87,10 +89,10 @@ async function get<T>(path: string, base = apiBase()): Promise<T> {
       signal: AbortSignal.timeout(10_000),
     });
   } catch {
-    throw new ApiError(502, 'Le catalogue est momentanément injoignable.');
+    throw new ApiError(502, 'unreachable');
   }
-  if (res.status === 404) throw new ApiError(404, 'Introuvable.');
-  if (!res.ok) throw new ApiError(502, `Le catalogue a répondu par une erreur (${res.status}).`);
+  if (res.status === 404) throw new ApiError(404, 'not_found');
+  if (!res.ok) throw new ApiError(502, 'upstream_error', res.status);
   return (await res.json()) as T;
 }
 

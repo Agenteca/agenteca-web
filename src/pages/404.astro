@@ -1,8 +1,10 @@
 ---
 import Base from '../layouts/Base.astro';
+
+const { t } = Astro.locals.i18n;
 ---
 
-<Base title="Page introuvable">
-  <h1>Page introuvable</h1>
-  <p>Cette page n’existe pas. <a href="/">Retour au catalogue</a>.</p>
+<Base title={t('Page not found')}>
+  <h1>{t('Page not found')}</h1>
+  <p>{t('This page does not exist.')} <a href="/">{t('Back to the catalog')}</a>.</p>
 </Base>

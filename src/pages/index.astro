@@ -1,7 +1,10 @@
 ---
 import Base from '../layouts/Base.astro';
-import { api, ApiError, type PackagePage, searchQuery, TOOLS } from '../lib/api';
-import { parsePage, parseTool, plural, TOOL_LABELS } from '../lib/format';
+import { api, type PackagePage, searchQuery, TOOLS } from '../lib/api';
+import { failureSentence, parsePage, parseTool, TOOL_LABELS } from '../lib/format';
+
+const i18n = Astro.locals.i18n;
+const { t, plural } = i18n;
 
 const params = Astro.url.searchParams;
 const q = (params.get('q') ?? '').trim().slice(0, 200);
@@ -13,7 +16,7 @@ let failure: string | undefined;
 try {
   result = await api.search({ q, ...(tool ? { tool } : {}), page });
 } catch (e) {
-  failure = e instanceof ApiError ? e.message : 'Une erreur est survenue.';
+  failure = failureSentence(e, i18n);
   Astro.response.status = 502;
 }
 const pageCount = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
@@ -21,28 +24,28 @@ const link = (p: number) => `/${searchQuery({ q, ...(tool ? { tool } : {}), page
 const filtered = q !== '' || tool !== undefined;
 ---
 
-<Base title={q ? `Recherche : ${q}` : 'Catalogue'}>
-  <h1>Catalogue d’agents</h1>
+<Base title={q ? t('Search: {0}', [q]) : t('Catalog')}>
+  <h1>{t('Agent catalog')}</h1>
   <p class="lead">
-    Trouvez un agent, lisez ce qu’il contient, puis copiez la commande qui l’installe dans votre outil.
+    {t('Find an agent, read what it contains, then copy the command that installs it in your tool.')}
   </p>
 
-  <form class="search" method="get" action="/" role="search" aria-label="Rechercher dans le catalogue">
+  <form class="search" method="get" action="/" role="search" aria-label={t('Search the catalog')}>
     <div>
-      <label for="q">Que cherchez-vous ?</label>
+      <label for="q">{t('What are you looking for?')}</label>
       <div class="search-row">
-        <input type="search" id="q" name="q" value={q} maxlength="200" placeholder="Par exemple : relecture de code" autocomplete="off" />
-        <button class="button" type="submit">Rechercher</button>
+        <input type="search" id="q" name="q" value={q} maxlength="200" placeholder={t('For example: code review')} autocomplete="off" />
+        <button class="button" type="submit">{t('Search')}</button>
       </div>
     </div>
     <fieldset>
-      <legend>Compatible avec</legend>
+      <legend>{t('Compatible with')}</legend>
       <div class="choices">
-        <label><input type="radio" name="tool" value="" checked={!tool} /> Tous les outils</label>
+        <label><input type="radio" name="tool" value="" checked={!tool} /> {t('All tools')}</label>
         {
-          TOOLS.map((t) => (
+          TOOLS.map((name) => (
             <label>
-              <input type="radio" name="tool" value={t} checked={tool === t} /> {TOOL_LABELS[t]}
+              <input type="radio" name="tool" value={name} checked={tool === name} /> {TOOL_LABELS[name]}
             </label>
           ))
         }
@@ -53,7 +56,7 @@ const filtered = q !== '' || tool !== undefined;
   {
     failure && (
       <div class="notice danger" role="alert">
-        <p>{failure} Réessayez dans un instant.</p>
+        <p>{failure} {t('Try again in a moment.')}</p>
       </div>
     )
   }
@@ -61,18 +64,23 @@ const filtered = q !== '' || tool !== undefined;
   {
     result && (
       <section aria-labelledby="titre-resultats">
-        <h2 id="titre-resultats">Résultats</h2>
+        <h2 id="titre-resultats">{t('Results')}</h2>
         <p role="status">
           <strong>
-            {result.total === 0 ? 'Aucun paquet trouvé' : plural(result.total, 'paquet')}
-            {filtered && result.total > 0 ? ' pour cette recherche' : ''}
+            {result.total === 0
+              ? t('No package found')
+              : filtered
+                ? plural(result.total, '{0} package for this search|{0} packages for this search')
+                : plural(result.total, '{0} package|{0} packages')}
           </strong>
         </p>
         {result.total === 0 && (
           <p>
-            {filtered ? 'Essayez d’autres mots, ou ' : 'Le catalogue est encore vide.'}
-            {filtered && <a href="/">affichez tout le catalogue</a>}
-            {filtered && '.'}
+            {filtered ? (
+              <Fragment set:html={t('Try other words, or {0}show the whole catalog{1}.', ['<a href="/">', '</a>'])} />
+            ) : (
+              t('The catalog is still empty.')
+            )}
           </p>
         )}
         <ul class="results">
@@ -81,30 +89,30 @@ const filtered = q !== '' || tool !== undefined;
               <h3>
                 <a href={`/packages/${p.id}`}>{p.name}</a>
               </h3>
-              <p>{p.description ?? 'Pas de description.'}</p>
-              <ul class="meta" aria-label={`Informations sur ${p.name}`}>
-                {p.latestVersion && <li class="badge">Version {p.latestVersion}</li>}
-                {p.tools.map((t) => (
-                  <li class="badge">{TOOL_LABELS[t]}</li>
+              <p>{p.description ?? t('No description.')}</p>
+              <ul class="meta" aria-label={t('Information about {0}', [p.name])}>
+                {p.latestVersion && <li class="badge">{t('Version {0}', [p.latestVersion])}</li>}
+                {p.tools.map((name) => (
+                  <li class="badge">{TOOL_LABELS[name]}</li>
                 ))}
-                {p.license && <li class="badge">Licence {p.license}</li>}
+                {p.license && <li class="badge">{t('License {0}', [p.license])}</li>}
               </ul>
             </li>
           ))}
         </ul>
         {pageCount > 1 && (
-          <nav class="pagination" aria-label="Pages de résultats">
+          <nav class="pagination" aria-label={t('Result pages')}>
             {page > 1 && (
               <a class="button secondary" href={link(page - 1)} rel="prev">
-                Page précédente
+                {t('Previous page')}
               </a>
             )}
             <span>
-              Page {page} sur {pageCount}
+              {t('Page {0} of {1}', [page, pageCount])}
             </span>
             {page < pageCount && (
               <a class="button secondary" href={link(page + 1)} rel="next">
-                Page suivante
+                {t('Next page')}
               </a>
             )}
           </nav>

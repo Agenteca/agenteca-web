@@ -1,7 +1,10 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { api, ApiError, type FileContent, type PackageItem, type VersionDetail, type VersionItem } from '../../lib/api';
-import { formatDate, formatSize, plural, scanSentence, SEVERITY_LABELS, TOOL_LABELS } from '../../lib/format';
+import { failureSentence, formatDate, formatSize, scanSentence, severityLabel, TOOL_LABELS } from '../../lib/format';
+
+const i18n = Astro.locals.i18n;
+const { t, plural, locale } = i18n;
 
 const id = Number(Astro.params.id);
 const wantedVersion = Astro.url.searchParams.get('version');
@@ -14,7 +17,7 @@ let file: FileContent | undefined;
 let failure: { status: number; message: string } | undefined;
 
 try {
-  if (!Number.isInteger(id) || id < 1) throw new ApiError(404, 'Introuvable.');
+  if (!Number.isInteger(id) || id < 1) throw new ApiError(404, 'not_found');
   pkg = await api.package(id);
   versions = (await api.versions(id)).items;
   const current = versions.find((v) => v.version === wantedVersion) ?? versions.find((v) => v.version === pkg!.latestVersion) ?? versions[0];
@@ -24,7 +27,7 @@ try {
     if (target) file = await api.file(id, current.version, target.path);
   }
 } catch (e) {
-  failure = e instanceof ApiError ? { status: e.status, message: e.message } : { status: 502, message: 'Une erreur est survenue.' };
+  failure = { status: e instanceof ApiError ? e.status : 502, message: failureSentence(e, i18n) };
   Astro.response.status = failure.status;
 }
 
@@ -37,15 +40,15 @@ const isLatest = detail && pkg && detail.version === pkg.latestVersion;
 const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg.repository}#${detail.ref}`) : '';
 ---
 
-<Base title={pkg?.name ?? 'Paquet introuvable'} description={pkg?.description ?? undefined}>
-  <p><a href="/">← Retour au catalogue</a></p>
+<Base title={pkg?.name ?? t('Package not found')} description={pkg?.description ?? undefined}>
+  <p><a href="/">← {t('Back to the catalog')}</a></p>
 
   {
     failure && (
       <>
-        <h1>{failure.status === 404 ? 'Paquet introuvable' : 'Catalogue injoignable'}</h1>
+        <h1>{failure.status === 404 ? t('Package not found') : t('Catalog unreachable')}</h1>
         <div class="notice danger" role="alert">
-          <p>{failure.status === 404 ? 'Ce paquet n’existe pas, ou n’est plus dans le catalogue.' : `${failure.message} Réessayez dans un instant.`}</p>
+          <p>{failure.status === 404 ? t('This package does not exist, or is no longer in the catalog.') : `${failure.message} ${t('Try again in a moment.')}`}</p>
         </div>
       </>
     )
@@ -55,30 +58,37 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
     pkg && (
       <>
         <h1>{pkg.name}</h1>
-        <p class="lead">{pkg.description ?? 'Pas de description.'}</p>
-        <ul class="meta" aria-label="Outils compatibles et licence">
-          {pkg.tools.map((t) => (
-            <li class="badge">{TOOL_LABELS[t]}</li>
+        <p class="lead">{pkg.description ?? t('No description.')}</p>
+        <ul class="meta" aria-label={t('Compatible tools and license')}>
+          {pkg.tools.map((name) => (
+            <li class="badge">{TOOL_LABELS[name]}</li>
           ))}
-          {pkg.license && <li class="badge">Licence {pkg.license}</li>}
-          {pkg.tags.map((t) => (
-            <li class="badge">{t}</li>
+          {pkg.license && <li class="badge">{t('License {0}', [pkg.license])}</li>}
+          {pkg.tags.map((tag) => (
+            <li class="badge">{tag}</li>
           ))}
         </ul>
 
         {detail && (
           <section class="install" aria-labelledby="titre-installer">
-            <h2 id="titre-installer">Installer{isLatest ? '' : ` la version ${detail.version}`}</h2>
-            <p>Copiez cette commande dans un terminal, à la racine de votre projet. Elle affiche tout ce qui sera écrit et demande votre accord avant d’agir.</p>
+            <h2 id="titre-installer">{isLatest ? t('Install') : t('Install version {0}', [detail.version])}</h2>
+            <p>{t('Copy this command into a terminal, at the root of your project. It shows everything that will be written and asks for your agreement before acting.')}</p>
             <div class="command">
               <code id="commande">{command}</code>
               <button class="button" type="button" data-copy="commande" hidden>
-                Copier la commande
+                {t('Copy the command')}
               </button>
             </div>
-            <p class="muted" role="status" aria-live="polite" data-copy-status />
+            <p
+              class="muted"
+              role="status"
+              aria-live="polite"
+              data-copy-status
+              data-copied={t('Command copied.')}
+              data-failed={t('Could not copy: select the command by hand.')}
+            />
             <p class="muted">
-              Il vous faut l’outil <code>ahub</code>. Pour choisir les outils visés, ajoutez par exemple <code>--tool claude,cursor</code>.
+              <Fragment set:html={t('You need the {0} tool. To choose the target tools, add for example {1}.', ['<code>ahub</code>', '<code>--tool claude,cursor</code>'])} />
             </p>
           </section>
         )}
@@ -86,30 +96,31 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
         {detail && c && (
           <>
             <section aria-labelledby="titre-securite">
-              <h2 id="titre-securite">Contrôle de sécurité</h2>
+              <h2 id="titre-securite">{t('Security check')}</h2>
               <div class={`notice ${scanClass}`}>
                 <p>
-                  <strong>{detail.scanBlocked ? 'Attention.' : detail.findings.length > 0 ? 'À vérifier.' : 'Rien à signaler.'}</strong>{' '}
-                  {scanSentence(detail.findings, detail.scanBlocked)}
+                  <strong>{detail.scanBlocked ? t('Warning.') : detail.findings.length > 0 ? t('To check.') : t('Nothing to report.')}</strong>{' '}
+                  {scanSentence(detail.findings, detail.scanBlocked, i18n)}
                 </p>
               </div>
               {detail.findings.length > 0 && (
                 <div class="table-scroll">
                   <table>
-                    <caption class="visually-hidden">Points relevés par le contrôle automatique</caption>
+                    <caption class="visually-hidden">{t('Points found by the automatic check')}</caption>
                     <thead>
                       <tr>
-                        <th scope="col">Gravité</th>
-                        <th scope="col">Fichier</th>
-                        <th scope="col">Constat</th>
+                        <th scope="col">{t('Severity')}</th>
+                        <th scope="col">{t('File')}</th>
+                        <th scope="col">{t('Finding')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detail.findings.map((f) => (
                         <tr>
-                          <td>{SEVERITY_LABELS[f.severity]}</td>
+                          <td>{severityLabel(f.severity, i18n)}</td>
                           <td>
-                            <a href={fileLink(f.path)}>{f.path}</a>, ligne {f.line}
+                            <a href={fileLink(f.path)}>{f.path}</a>
+                            {t(', line {0}', [f.line])}
                           </td>
                           <td>{f.message}</td>
                         </tr>
@@ -118,24 +129,27 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
                   </table>
                 </div>
               )}
-              <p class="muted">Ce contrôle repère des pièges connus (texte invisible, commandes dangereuses). Il ne remplace pas une lecture du contenu.</p>
+              <p class="muted">{t('This check spots known traps (invisible text, dangerous commands). It does not replace reading the content.')}</p>
             </section>
 
             <section aria-labelledby="titre-contenu">
-              <h2 id="titre-contenu">Ce que ce paquet installe</h2>
+              <h2 id="titre-contenu">{t('What this package installs')}</h2>
               {executes > 0 && (
                 <div class="notice warning">
                   <p>
-                    <strong>Ce paquet lance des programmes.</strong> {plural(executes, 'élément')} ci-dessous{' '}
-                    {executes > 1 ? 'exécutent' : 'exécute'} une commande sur votre machine. Lisez-les avant d’installer.
+                    <strong>{t('This package runs programs.')}</strong>{' '}
+                    {plural(
+                      executes,
+                      '{0} item below runs a command on your machine. Read it before installing.|{0} items below run a command on your machine. Read them before installing.',
+                    )}
                   </p>
                 </div>
               )}
 
               {c.skills.length > 0 && (
                 <>
-                  <h3>Compétences ({c.skills.length})</h3>
-                  <p class="muted">Des savoir-faire que l’agent charge quand il en a besoin.</p>
+                  <h3>{t('Skills ({0})', [c.skills.length])}</h3>
+                  <p class="muted">{t('Know-how the agent loads when it needs it.')}</p>
                   <ul class="plain">
                     {c.skills.map((s) => (
                       <li>
@@ -148,8 +162,8 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
               )}
               {c.agents.length > 0 && (
                 <>
-                  <h3>Agents ({c.agents.length})</h3>
-                  <p class="muted">Des assistants spécialisés, avec leurs propres consignes.</p>
+                  <h3>{t('Agents ({0})', [c.agents.length])}</h3>
+                  <p class="muted">{t('Specialised assistants, with their own instructions.')}</p>
                   <ul class="plain">
                     {c.agents.map((a) => (
                       <li>{a}</li>
@@ -159,8 +173,8 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
               )}
               {c.commands.length > 0 && (
                 <>
-                  <h3>Commandes ({c.commands.length})</h3>
-                  <p class="muted">Des raccourcis à taper dans l’outil.</p>
+                  <h3>{t('Commands ({0})', [c.commands.length])}</h3>
+                  <p class="muted">{t('Shortcuts to type in the tool.')}</p>
                   <ul class="plain">
                     {c.commands.map((a) => (
                       <li>
@@ -172,8 +186,8 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
               )}
               {c.instructions.length > 0 && (
                 <>
-                  <h3>Consignes ({c.instructions.length})</h3>
-                  <p class="muted">Des règles appliquées automatiquement à certains fichiers.</p>
+                  <h3>{t('Instructions ({0})', [c.instructions.length])}</h3>
+                  <p class="muted">{t('Rules applied automatically to some files.')}</p>
                   <ul class="plain">
                     {c.instructions.map((a) => (
                       <li>{a}</li>
@@ -183,12 +197,12 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
               )}
               {c.hooks.length > 0 && (
                 <>
-                  <h3>Automatismes ({c.hooks.length})</h3>
-                  <p class="muted">Des commandes lancées automatiquement à certains moments (« hooks »).</p>
+                  <h3>{t('Automations ({0})', [c.hooks.length])}</h3>
+                  <p class="muted">{t('Commands run automatically at certain moments ("hooks").')}</p>
                   <ul class="plain">
                     {c.hooks.map((h) => (
                       <li>
-                        <strong>{h.name}</strong> — se déclenche sur : {h.events.join(', ')}
+                        <strong>{h.name}</strong> — {t('runs on: {0}', [h.events.join(', ')])}
                       </li>
                     ))}
                   </ul>
@@ -196,8 +210,8 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
               )}
               {c.mcpServers.length > 0 && (
                 <>
-                  <h3>Serveurs d’outils ({c.mcpServers.length})</h3>
-                  <p class="muted">Des programmes qui donnent de nouveaux outils à l’agent (serveurs MCP).</p>
+                  <h3>{t('Tool servers ({0})', [c.mcpServers.length])}</h3>
+                  <p class="muted">{t('Programs that give the agent new tools (MCP servers).')}</p>
                   <ul class="plain">
                     {c.mcpServers.map((m) => (
                       <li>
@@ -210,8 +224,8 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
             </section>
 
             <section aria-labelledby="titre-fichiers">
-              <h2 id="titre-fichiers">Lire les fichiers ({detail.files.length})</h2>
-              <p>Voici exactement ce que contient cette version. Cliquez sur un fichier pour le lire.</p>
+              <h2 id="titre-fichiers">{t('Read the files ({0})', [detail.files.length])}</h2>
+              <p>{t('Here is exactly what this version contains. Click a file to read it.')}</p>
               <ul class="plain">
                 {detail.files.map((f) => (
                   <li>
@@ -223,8 +237,8 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
                       <span>{f.path}</span>
                     )}{' '}
                     <span class="muted">
-                      ({formatSize(f.size)}
-                      {f.hasContent ? '' : ', fichier binaire non affiché'})
+                      ({formatSize(f.size, locale)}
+                      {f.hasContent ? '' : t(', binary file not shown')})
                     </span>
                   </li>
                 ))}
@@ -238,36 +252,36 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
             </section>
 
             <section aria-labelledby="titre-details">
-              <h2 id="titre-details">Détails</h2>
+              <h2 id="titre-details">{t('Details')}</h2>
               <dl class="facts">
-                <dt>Version affichée</dt>
+                <dt>{t('Version shown')}</dt>
                 <dd>{detail.version}</dd>
-                <dt>Source</dt>
+                <dt>{t('Source')}</dt>
                 <dd>
                   <code>{pkg.repository}</code>
                 </dd>
                 {detail.commit && (
                   <>
-                    <dt>Révision exacte</dt>
+                    <dt>{t('Exact revision')}</dt>
                     <dd>
                       <code>{detail.commit}</code>
                     </dd>
                   </>
                 )}
-                <dt>Lu par le catalogue le</dt>
-                <dd>{formatDate(detail.indexedAt)}</dd>
+                <dt>{t('Read by the catalog on')}</dt>
+                <dd>{formatDate(detail.indexedAt, locale)}</dd>
               </dl>
               {versions.length > 1 && (
                 <>
-                  <h3>Autres versions</h3>
+                  <h3>{t('Other versions')}</h3>
                   <ul class="plain">
                     {versions.map((v) => (
                       <li>
                         <a href={versionLink(v.version)} aria-current={v.version === detail!.version ? 'true' : undefined}>
                           {v.version}
                         </a>
-                        {v.version === pkg!.latestVersion ? ' (dernière)' : ''}
-                        {v.scanBlocked ? ' — problème critique relevé' : ''}
+                        {v.version === pkg!.latestVersion ? t(' (latest)') : ''}
+                        {v.scanBlocked ? t(' — critical problem found') : ''}
                       </li>
                     ))}
                   </ul>
@@ -292,9 +306,9 @@ const command = pkg && detail ? (isLatest ? pkg.installCommand : `ahub add ${pkg
     button.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(source.textContent ?? '');
-        if (status) status.textContent = 'Commande copiée.';
+        if (status) status.textContent = status.dataset.copied ?? '';
       } catch {
-        if (status) status.textContent = 'Copie impossible : sélectionnez la commande à la main.';
+        if (status) status.textContent = status.dataset.failed ?? '';
       }
     });
   }

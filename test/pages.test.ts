@@ -138,11 +138,15 @@ function mockApi(): Promise<Server> {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-async function page(path: string): Promise<{ status: number; html: string; doc: Document; dom: JSDOM }> {
-  const res = await fetch(`${base}${path}`);
+/** Demande une page comme un navigateur réglé sur `language` (français par défaut : les attentes ci-dessous sont en français). */
+async function page(
+  path: string,
+  language = 'fr-FR,fr;q=0.9,en;q=0.5',
+): Promise<{ status: number; html: string; doc: Document; dom: JSDOM; headers: Headers }> {
+  const res = await fetch(`${base}${path}`, { headers: { 'accept-language': language }, redirect: 'manual' });
   const html = await res.text();
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: `${base}${path}` });
-  return { status: res.status, html, doc: dom.window.document, dom };
+  return { status: res.status, html, doc: dom.window.document, dom, headers: res.headers };
 }
 
 async function a11y(dom: JSDOM): Promise<string[]> {
@@ -345,5 +349,56 @@ describe('panne du catalogue', () => {
     } finally {
       apiDown = false;
     }
+  });
+});
+
+describe('langues', () => {
+  it('répond en anglais par défaut et dans la langue du navigateur sinon', async () => {
+    const en = await page('/', 'de-DE,de;q=0.9');
+    expect(en.doc.documentElement.lang).toBe('en');
+    expect(en.doc.querySelector('h1')!.textContent).toBe('Agent catalog');
+    expect(en.doc.querySelector('[role="status"]')!.textContent!.replace(/\s+/g, ' ').trim()).toBe(
+      '2 packages',
+    );
+    expect(en.headers.get('content-language')).toBe('en');
+
+    const es = await page('/', 'es-MX,es;q=0.9,en;q=0.8');
+    expect(es.doc.documentElement.lang).toBe('es');
+    expect(es.doc.querySelector('h1')!.textContent).toBe('Catálogo de agentes');
+
+    const zh = await page('/packages/1', 'zh-CN,zh;q=0.9');
+    expect(zh.doc.documentElement.lang).toBe('zh-Hans');
+    expect(zh.doc.getElementById('titre-installer')!.textContent).toBe('安装');
+    expect(zh.doc.querySelector('main')!.textContent).toContain('下面有 2 项会在您的电脑上执行命令');
+    expect(await a11y(zh.dom)).toEqual([]);
+
+    const hi = await page('/packages/2', 'hi-IN');
+    expect(hi.doc.documentElement.lang).toBe('hi');
+    expect(hi.doc.querySelector('.notice.danger')!.textContent).toContain('1 गंभीर समस्या मिली');
+    expect(await a11y(hi.dom)).toEqual([]);
+  });
+
+  it('laisse choisir la langue par un lien, et s’en souvient', async () => {
+    const fr = await page('/?q=relecture');
+    const links = [...fr.doc.querySelectorAll('ul.languages a')].map((a) => [
+      a.textContent!.trim(),
+      a.getAttribute('href'),
+      a.getAttribute('aria-current'),
+    ]);
+    expect(links).toEqual([
+      ['English', '/?q=relecture&lang=en', null],
+      ['Français', '/?q=relecture&lang=fr', 'true'],
+      ['Español', '/?q=relecture&lang=es', null],
+      ['中文', '/?q=relecture&lang=zh', null],
+      ['हिन्दी', '/?q=relecture&lang=hi', null],
+    ]);
+    // Le choix explicite l'emporte sur le navigateur, et pose un cookie.
+    const chosen = await page('/?lang=es');
+    expect(chosen.doc.documentElement.lang).toBe('es');
+    expect(chosen.headers.get('set-cookie')).toMatch(/^lang=es;.*HttpOnly/i);
+    const res = await fetch(`${base}/`, { headers: { 'accept-language': 'fr', cookie: 'lang=hi' } });
+    expect(await res.text()).toContain('<html lang="hi">');
+    // Une valeur inconnue est ignorée.
+    expect((await page('/?lang=xx')).doc.documentElement.lang).toBe('fr');
   });
 });
