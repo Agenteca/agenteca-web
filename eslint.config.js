@@ -8,7 +8,7 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      // Les caractères de contrôle sont le sujet même du scan de sécurité.
+      // Control characters are the very subject of the security scan.
       'no-control-regex': 'off',
       'no-misleading-character-class': 'off',
       'no-irregular-whitespace': [

@@ -1,7 +1,7 @@
 import node from '@astrojs/node';
 import { defineConfig } from 'astro/config';
 
-// Rendu côté serveur : chaque page est du HTML complet, lisible sans JavaScript.
+// Server-side rendering: every page is complete HTML, readable without JavaScript.
 export default defineConfig({
   output: 'server',
   adapter: node({ mode: 'standalone' }),
