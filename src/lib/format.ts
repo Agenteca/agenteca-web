@@ -69,7 +69,7 @@ export function failureSentence(error: unknown, { t }: I18n): string {
   return t('Something went wrong.');
 }
 
-/** Rapport de contraste WCAG entre deux couleurs hexadécimales. */
+/** WCAG contrast ratio between two hexadecimal colors. */
 export function contrastRatio(a: string, b: string): number {
   const lum = (hex: string): number => {
     const m = /^#([0-9a-f]{6})$/i.exec(hex);

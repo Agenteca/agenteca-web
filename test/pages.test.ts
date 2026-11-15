@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * Lance le site construit (dist/) face à une fausse API, puis vérifie le HTML
- * servi : contenu, comportement sans JavaScript et règles d'accessibilité axe.
- * Le contraste, que jsdom ne sait pas calculer, est couvert par contrast.test.ts.
+ * Runs the built site (dist/) against a fake API, then checks the HTML
+ * served: content, behaviour without JavaScript and axe accessibility rules.
+ * Contrast, which jsdom cannot compute, is covered by contrast.test.ts.
  */
 const ENTRY = fileURLToPath(new URL('../dist/server/entry.mjs', import.meta.url));
 const hidden = [...'x'].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('');
@@ -138,7 +138,7 @@ function mockApi(): Promise<Server> {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-/** Demande une page comme un navigateur réglé sur `language` (français par défaut : les attentes ci-dessous sont en français). */
+/** Requests a page like a browser set to `language` (French by default: the expectations below are in French). */
 async function page(
   path: string,
   language = 'fr-FR,fr;q=0.9,en;q=0.5',
@@ -156,13 +156,13 @@ async function a11y(dom: JSDOM): Promise<string[]> {
     rules: { 'color-contrast': { enabled: false } },
   });
   return results.violations.map(
-    (v) => `${v.id} : ${v.help} (${v.nodes.length} élément(s) — ${v.nodes[0]?.html.slice(0, 120)})`,
+    (v) => `${v.id}: ${v.help} (${v.nodes.length} element(s) — ${v.nodes[0]?.html.slice(0, 120)})`,
   );
 }
 
 beforeAll(async () => {
   if (!existsSync(ENTRY))
-    throw new Error('dist/ absent : lancez « npm run build » (ou « npm test », qui le fait).');
+    throw new Error('dist/ missing: run "npm run build" (or "npm test", which does it).');
   api = await mockApi();
   const probe = createServer();
   await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
@@ -186,7 +186,7 @@ beforeAll(async () => {
       await new Promise((r) => setTimeout(r, 100));
     }
   }
-  throw new Error('le site ne démarre pas');
+  throw new Error('the site does not start');
 });
 
 afterAll(async () => {
@@ -195,7 +195,7 @@ afterAll(async () => {
 });
 
 describe('page catalogue', () => {
-  it('liste les paquets avec un formulaire utilisable sans JavaScript', async () => {
+  it('lists the packages with a form usable without JavaScript', async () => {
     const { status, doc, dom } = await page('/');
     expect(status).toBe(200);
     expect(doc.documentElement.lang).toBe('fr');
@@ -218,7 +218,7 @@ describe('page catalogue', () => {
     expect(await a11y(dom)).toEqual([]);
   });
 
-  it('filtre par mots et par outil, et garde les choix dans le formulaire', async () => {
+  it('filters by words and by tool, and keeps the choices in the form', async () => {
     const { doc, dom } = await page('/?q=relecture&tool=cursor');
     expect((doc.getElementById('q') as HTMLInputElement).value).toBe('relecture');
     expect((doc.querySelector('input[name="tool"][value="cursor"]') as HTMLInputElement).checked).toBe(true);
@@ -227,11 +227,11 @@ describe('page catalogue', () => {
     );
     expect(doc.querySelectorAll('.card')).toHaveLength(1);
     expect(await a11y(dom)).toEqual([]);
-    // Un outil inconnu dans l'URL est ignoré plutôt que transmis.
+    // An unknown tool in the URL is ignored rather than passed on.
     expect((await page('/?tool=emacs')).doc.querySelectorAll('.card')).toHaveLength(2);
   });
 
-  it('explique une recherche sans résultat et pagine les longues listes', async () => {
+  it('explains a search with no result and paginates long lists', async () => {
     const empty = await page('/?q=introuvable');
     expect(empty.doc.querySelector('[role="status"]')!.textContent!.replace(/\s+/g, ' ').trim()).toBe(
       'Aucun paquet trouvé',
@@ -247,9 +247,9 @@ describe('page catalogue', () => {
     expect(await a11y(paged.dom)).toEqual([]);
   });
 
-  it('échappe la saisie de l’utilisateur', async () => {
+  it("escapes the user's input", async () => {
     const { html, doc } = await page(`/?q=${encodeURIComponent('"><script>alert(1)</script>')}`);
-    // La saisie revient dans le champ telle quelle, sans créer d'élément : aucune balise script injectée.
+    // The input comes back into the field as is, without creating an element: no script tag injected.
     expect((doc.getElementById('q') as HTMLInputElement).value).toBe('"><script>alert(1)</script>');
     expect([...doc.querySelectorAll('script')].filter((s) => s.textContent?.includes('alert(1)'))).toEqual(
       [],
@@ -261,12 +261,12 @@ describe('page catalogue', () => {
 });
 
 describe('page paquet', () => {
-  it('montre la commande, le contenu et les éléments exécutables avant installation', async () => {
+  it('shows the command, the content and the executable items before installation', async () => {
     const { status, doc, dom } = await page('/packages/1');
     expect(status).toBe(200);
     expect(doc.querySelector('h1')!.textContent).toBe('code-review');
     expect(doc.getElementById('commande')!.textContent).toBe('ahub add acme/code-review#v1.2.0');
-    // Le bouton de copie n'apparaît qu'avec JavaScript ; sans lui, la commande reste lisible.
+    // The copy button only appears with JavaScript; without it, the command stays readable.
     const button = doc.querySelector('button[data-copy="commande"]') as HTMLButtonElement;
     expect(button.hidden).toBe(true);
     expect(button.textContent!.trim()).toBe('Copier la commande');
@@ -288,7 +288,7 @@ describe('page paquet', () => {
     expect(await a11y(dom)).toEqual([]);
   });
 
-  it('affiche le texte d’un fichier, échappé', async () => {
+  it('shows the text of a file, escaped', async () => {
     const { html, doc, dom } = await page(
       `/packages/1?version=1.2.0&file=${encodeURIComponent('.apm/skills/review/SKILL.md')}`,
     );
@@ -299,17 +299,17 @@ describe('page paquet', () => {
       '.apm/skills/review/SKILL.md',
     );
     expect(await a11y(dom)).toEqual([]);
-    // Un fichier absent de la liste n'est pas demandé à l'API.
+    // A file missing from the list is not requested from the API.
     expect((await page('/packages/1?file=../../etc/passwd')).doc.getElementById('fichier')).toBeNull();
   });
 
-  it('adapte la commande à une version plus ancienne', async () => {
+  it('adapts the command to an older version', async () => {
     const { doc } = await page('/packages/1?version=1.1.0');
     expect(doc.getElementById('commande')!.textContent).toBe('ahub add acme/code-review#v1.1.0');
     expect(doc.getElementById('titre-installer')!.textContent).toBe('Installer la version 1.1.0');
   });
 
-  it('met en avant un problème critique', async () => {
+  it('highlights a critical problem', async () => {
     const { doc, dom } = await page('/packages/2');
     const notice = doc.querySelector('.notice.danger')!;
     expect(notice.textContent!.replace(/\s+/g, ' ')).toContain(
@@ -322,7 +322,7 @@ describe('page paquet', () => {
     expect(await a11y(dom)).toEqual([]);
   });
 
-  it('répond 404 pour un paquet inconnu ou un identifiant invalide', async () => {
+  it('answers 404 for an unknown package or an invalid identifier', async () => {
     for (const path of ['/packages/999', '/packages/abc', '/packages/-1']) {
       const { status, doc, dom } = await page(path);
       expect(status, path).toBe(404);
@@ -334,8 +334,8 @@ describe('page paquet', () => {
   });
 });
 
-describe('panne du catalogue', () => {
-  it('répond 502 avec un message clair, sans page blanche', async () => {
+describe('catalog outage', () => {
+  it('answers 502 with a clear message, without a blank page', async () => {
     apiDown = true;
     try {
       const home = await page('/');
@@ -353,7 +353,7 @@ describe('panne du catalogue', () => {
 });
 
 describe('langues', () => {
-  it('répond en anglais par défaut et dans la langue du navigateur sinon', async () => {
+  it("answers in English by default, and in the browser's language otherwise", async () => {
     const en = await page('/', 'de-DE,de;q=0.9');
     expect(en.doc.documentElement.lang).toBe('en');
     expect(en.doc.querySelector('h1')!.textContent).toBe('Agent catalog');
@@ -378,7 +378,7 @@ describe('langues', () => {
     expect(await a11y(hi.dom)).toEqual([]);
   });
 
-  it('laisse choisir la langue par un lien, et s’en souvient', async () => {
+  it('lets the visitor choose the language through a link, and remembers it', async () => {
     const fr = await page('/?q=relecture');
     const links = [...fr.doc.querySelectorAll('ul.languages a')].map((a) => [
       a.textContent!.trim(),
@@ -392,13 +392,13 @@ describe('langues', () => {
       ['中文', '/?q=relecture&lang=zh', null],
       ['हिन्दी', '/?q=relecture&lang=hi', null],
     ]);
-    // Le choix explicite l'emporte sur le navigateur, et pose un cookie.
+    // The explicit choice wins over the browser, and sets a cookie.
     const chosen = await page('/?lang=es');
     expect(chosen.doc.documentElement.lang).toBe('es');
     expect(chosen.headers.get('set-cookie')).toMatch(/^lang=es;.*HttpOnly/i);
     const res = await fetch(`${base}/`, { headers: { 'accept-language': 'fr', cookie: 'lang=hi' } });
     expect(await res.text()).toContain('<html lang="hi">');
-    // Une valeur inconnue est ignorée.
+    // An unknown value is ignored.
     expect((await page('/?lang=xx')).doc.documentElement.lang).toBe('fr');
   });
 });

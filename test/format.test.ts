@@ -10,8 +10,8 @@ import {
 } from '../src/lib/format.js';
 import { createI18n, negotiateLocale, pickLocale } from '../src/lib/i18n.js';
 
-describe('aides d’affichage', () => {
-  it('valide les paramètres d’URL', () => {
+describe('display helpers', () => {
+  it('validates the URL parameters', () => {
     expect(parseTool('cursor')).toBe('cursor');
     expect(parseTool('emacs')).toBeUndefined();
     expect(parseTool(null)).toBeUndefined();
@@ -19,7 +19,7 @@ describe('aides d’affichage', () => {
     for (const bad of ['0', '-1', 'abc', '1.5', '999999', null]) expect(parsePage(bad)).toBe(1);
   });
 
-  it('construit les liens de recherche', () => {
+  it('builds the search links', () => {
     expect(searchQuery({})).toBe('');
     expect(searchQuery({ q: 'relecture de code', tool: 'claude', page: 2 })).toBe(
       '?q=relecture+de+code&tool=claude&page=2',
@@ -29,8 +29,8 @@ describe('aides d’affichage', () => {
     expect(apiBase({})).toBe('http://localhost:8080');
   });
 
-  it('formate les tailles, les dates et les pluriels dans chaque langue', () => {
-    // Intl écrit des espaces insécables, différentes selon les langues : on compare sans en tenir compte.
+  it('formats sizes, dates and plurals in each language', () => {
+    // Intl writes non-breaking spaces, which differ between languages: comparisons ignore them.
     const plain = (text: string): string => text.replace(/\s/g, ' ');
     expect(plain(formatSize(512, 'fr'))).toBe('512 octets');
     expect(plain(formatSize(1536, 'fr'))).toBe('1,5 ko');
@@ -55,7 +55,7 @@ describe('aides d’affichage', () => {
     expect(createI18n('hi').t('a text nobody translated')).toBe('a text nobody translated');
   });
 
-  it('choisit la langue : adresse, puis cookie, puis navigateur, puis anglais', () => {
+  it('picks the language: address, then cookie, then browser, then English', () => {
     expect(pickLocale({})).toBe('en');
     expect(pickLocale({ header: 'fr-CH, fr;q=0.9, en;q=0.8' })).toBe('fr');
     expect(pickLocale({ header: 'de;q=0.9, es;q=0.4, hi;q=0.8' })).toBe('hi');
@@ -66,7 +66,7 @@ describe('aides d’affichage', () => {
     expect(negotiateLocale('*')).toBeUndefined();
   });
 
-  it('résume le scan en une phrase', () => {
+  it('sums up the scan in one sentence', () => {
     const fr = createI18n('fr');
     expect(scanSentence([], false, fr)).toContain('rien relevé');
     const critical = {
@@ -91,7 +91,7 @@ describe('aides d’affichage', () => {
     ).toContain('2 points à vérifier');
   });
 
-  it('calcule le contraste WCAG', () => {
+  it('computes the WCAG contrast', () => {
     expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 5);
     expect(contrastRatio('#ffffff', '#ffffff')).toBe(1);
     expect(contrastRatio('#767676', '#ffffff')).toBeGreaterThan(4.5);

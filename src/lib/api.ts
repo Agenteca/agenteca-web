@@ -1,4 +1,4 @@
-/** Client de l'API Agenteca Server (contrat : openapi.json du dépôt agenteca-server). */
+/** Client of the Agenteca Server API (contract: openapi.json of the agenteca-server repository). */
 
 export type Tool = 'claude' | 'codex' | 'copilot' | 'cursor';
 export const TOOLS: Tool[] = ['claude', 'codex', 'copilot', 'cursor'];

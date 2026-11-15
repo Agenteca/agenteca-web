@@ -33,10 +33,10 @@ function sourceMessages(): Set<string> {
 const placeholders = (s: string): string[] =>
   [...new Set([...s.matchAll(/\{\d+\}/g)].map((m) => m[0]))].sort();
 
-describe('traductions du site', () => {
+describe('translations of the site', () => {
   const messages = sourceMessages();
 
-  it('trouve les textes des pages', () => {
+  it('finds the texts of the pages', () => {
     expect(messages.size).toBeGreaterThan(80);
   });
 
@@ -59,9 +59,9 @@ describe('traductions du site', () => {
       for (const [source, translation] of Object.entries(catalog)) {
         expect(translation.trim(), source).not.toBe('');
         expect(placeholders(translation), source).toEqual(placeholders(source));
-        // Une langue donne une forme ou deux à un texte qui dépend d'un nombre, jamais plus.
+        // A language gives one or two forms to a text that depends on a count, never more.
         expect(translation.split('|').length, source).toBeLessThanOrEqual(source.split('|').length);
-        // Les textes insérés comme HTML ne doivent pas apporter de balise.
+        // Texts inserted as HTML must not bring any tag.
         expect(translation, source).not.toMatch(/[<>]/);
       }
     },
